@@ -1,4 +1,6 @@
+const https = require("https");
 const http = require("http");
+
 const os = require("os");
 const fs = require("fs");
 const url = require("url");
@@ -8,6 +10,7 @@ const mongoose = require("mongoose");
 let mime_types = new Map();
 mime_types.set("html", "text/html");
 mime_types.set("css", "text/css");
+mime_types.set("js", "text/javascript");
 mime_types.set("jpeg", "image/jpeg");
 mime_types.set("jpg", "image/jpeg");
 mime_types.set("png", "image/png");
@@ -15,15 +18,14 @@ mime_types.set("gif", "image/gif");
 mime_types.set("svg", "image/svg+xml");
 mime_types.set("mp4", "video/mp4")
 
-mongoose.connect("mongodb://localhost/mydb", { useNewUrlParser: true })
+mongoose.connect("mongodb://localhost/pmgdb", {})
     .then(() => console.log("MongoDB Connectend"))
     .catch(err => console.log(err));
 
 const event_schema = new mongoose.Schema({
     name: String,
     description: String,
-    time: Date,
-    date: Date,
+    date: String,
     price: Number,
     adress: String,
     organization: String,
@@ -86,9 +88,20 @@ function upload_event(request, response, query) {
     });
 
     request.on("end", () => {
-        response.statusCode = 200;
-        response.setHeader("Content-Type", "text/plain");
-        response.end();
+        console.log(body)
+        const json_document = JSON.parse(body);
+        const document = events(json_document);
+        document.save()
+            .then(() => {
+                response.statusCode = 200;
+                response.setHeader("Content-Type", "text/plain");
+                response.end();
+            })
+            .catch((err) => {
+                response.statusCode = 400;
+                response.setHeader("Content-Type", "text/plain");
+                response.end();
+            });
     });
 }
 
@@ -112,7 +125,12 @@ handlers.set("/get_event_info", get_event_info);
 handlers.set("/upload_event", upload_event);
 handlers.set("/delete_event", delete_event);
 
-http.createServer(function(request, response) {
+const options = {
+    key: fs.readFileSync('./cert/privkey.pem'),
+    cert: fs.readFileSync('./cert/fullchain.pem')
+};
+
+https.createServer(options, function(request, response) {
     let url_parts = url.parse(request.url, true);
     let path = url_parts.pathname;
     let query = url_parts.query;
@@ -123,23 +141,30 @@ http.createServer(function(request, response) {
         handlers.get(path)(request, response, query);
     } else if (path.includes(".")) {
         if (path.includes("acme-challenge")) {
-            //todo
+            response.end(path.slice(28) + ".GZFKVH10R4UOelymqQ8F1FJpsJqYGclb-OaSI-F4-K0");
         } else {
             let file_extension = path.slice(path.lastIndexOf(".") + 1);
-            fs.access(path, fs.constants.R_OK, (err) => {
+            let fpath = path.slice(1);
+            fs.access(fpath, fs.constants.R_OK, (err) => {
                 if (err) {
                     response.statusCode = 404;
                     response.setHeader("Content-Type", "text/plain");
                     response.end();
                     return;
                 }
-                response.setHeader("Content-Type", mime_types.get(file_extension));
-                fs.createReadStream(path).pipe(response);
+                if (mime_types.has(file_extension)) {
+                    response.setHeader("Content-Type", mime_types.get(file_extension));
+                    fs.createReadStream(fpath).pipe(response);
+                } else {
+                    response.statusCode = 400;
+                    response.setHeader("Content-Type", "text/plain");
+                    response.end();
+                }
             })
         }
     } else {
         response.end();
     }
-}).listen(80, function() {
-    console.log("Server is listening 80");
+}).listen(443, function() {
+    console.log("Server is listening 443");
 });
