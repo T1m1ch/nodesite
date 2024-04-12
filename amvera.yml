@@ -1,11 +1,13 @@
+---
 meta:
-  version: "21"
-  toolchain: npm
   environment: node
+  toolchain:
+    name: npm
+    version: 21
 build:
   skip: false
   artifacts:
-    "*": /
+    '*': /
 run:
   scriptName: src/index.js
   command: npm run start
