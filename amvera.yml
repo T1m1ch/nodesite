@@ -1,10 +1,13 @@
 meta:
-  environment: docker
-  toolchain: docker
+  version: "21"
+  toolchain: npm
+  environment: node
 build:
-  dockerfile: Dockerfile
   skip: false
+  artifacts:
+    "*": /
 run:
-  persistenceMount: /data
-  containerPort: "8000"
+  scriptName: src/index.js
   command: npm run start
+  persistenceMount: /data
+  containerPort: 8000
